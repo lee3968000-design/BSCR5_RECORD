@@ -75,7 +75,8 @@
             <select id="inputEventSelect">
                 </select>
 
-            <input type="text" id="inputRecord" placeholder="기록 (엔터키로 저장)">
+            <input type="text" id="inputRecord" placeholder="기록 (엔터키로 저장)" onkeydown="if(window.event.keyCode == 13){ saveRecord(); }">
+            
             <button class="save-btn" onclick="saveRecord()">저장</button>
         </div>
         <p style="font-size: 0.8em; color: gray;">
@@ -149,15 +150,6 @@
                 nameOptions += `<option value="${p.name}">${p.name} (${p.team})</option>`;
             });
             nameSelect.innerHTML = nameOptions;
-
-            // ✅ 엔터키 이벤트 리스너 추가
-            const inputRecord = document.getElementById('inputRecord');
-            inputRecord.addEventListener("keypress", function(event) {
-                if (event.key === "Enter") {
-                    event.preventDefault(); // 폼 전송 막기
-                    saveRecord();
-                }
-            });
         }
 
         async function loadData() {
@@ -263,11 +255,10 @@
                 newData.team = team;
 
                 set(userRef, newData).then(() => {
-                    // ✅ 팝업 삭제 & 입력창 비우기 & 포커스 유지
-                    // alert("저장되었습니다!");  <-- 삭제됨
+                    // 팝업 없이 바로 갱신
                     loadData();
                     recordInput.value = ""; // 입력창 비움
-                    recordInput.focus();    // 계속 입력할 수 있게 포커스
+                    recordInput.focus();    // 포커스 유지
                 }).catch((error) => {
                     alert("저장 실패: " + error.message);
                 });
