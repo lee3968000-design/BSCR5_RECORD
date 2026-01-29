@@ -79,49 +79,38 @@
             <button class="save-btn" onclick="saveRecord()">기록 저장하기</button>
         </div>
         <p style="font-size: 0.8em; color: gray;">
-            * 30명의 이름이 미리 등록되어 있습니다. 기록을 입력할 선수를 목록에서 선택하세요.<br>
-            * 기록이 없는 선수는 자동으로 하위권(빈칸) 처리됩니다.
+            * 기록을 입력하면 자동으로 저장되고 테이블이 갱신됩니다.<br>
+            * Realtime Database를 사용합니다.
         </p>
     </div>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getFirestore, collection, doc, setDoc, getDocs, getDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        // 🔴 중요: firestore 대신 database를 import 했습니다.
+        import { getDatabase, ref, set, get, child } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
-        // ✅ [설정 1] 종목 이름 고정 (12개)
+        // ✅ 종목 이름 고정
         const eventNames = [
             "볼트와 너트", "역쌍근", "워드메이커", "반사게임", 
             "무승부 사목", "넘버 체인", "물용량", "괴물 퍼즐", 
             "더색놀", "13간지", "한수체크", "나무위키"
         ];
 
-        // ✅ [설정 2] 참가자 30명 명단 (보라, 초록, 노랑, 파랑, 빨강, 갈색)
+        // ✅ 참가자 명단
         const defaultPlayers = [
-            // 보라색
-            { name: "GMT_과박", team: "purple" }, { name: "GMT_랑월", team: "purple" }, 
-            { name: "GMT_익명", team: "purple" }, { name: "GMT_찌농", team: "purple" }, { name: "GMT_후쥐", team: "purple" },
-            // 초록색
-            { name: "GS3_게로", team: "green" }, { name: "GS3_창조", team: "green" }, 
-            { name: "GS3_넴리", team: "green" }, { name: "GS3_직플", team: "green" }, { name: "GS3_서진", team: "green" },
-            // 노랑색
-            { name: "B1A4_운명", team: "yellow" }, { name: "B1A4_러각", team: "yellow" }, 
-            { name: "B1A4_소네", team: "yellow" }, { name: "B1A4_우유", team: "yellow" }, { name: "B1A4_집가", team: "yellow" },
-            // 파랑색
-            { name: "DBT_모지", team: "blue" }, { name: "DBT_로니", team: "blue" }, 
-            { name: "DBT_사르", team: "blue" }, { name: "DBT_지니", team: "blue" }, { name: "DBT_티티", team: "blue" },
-            // 빨강색
-            { name: "HTML_하멜", team: "red" }, { name: "HTML_귤까", team: "red" }, 
-            { name: "HTML_무혼", team: "red" }, { name: "HTML_흑랑", team: "red" }, { name: "HTML_엘제", team: "red" },
-            // 갈색
-            { name: "BLS_한빈", team: "brown" }, { name: "BLS_도감", team: "brown" }, 
-            { name: "BLS_문스", team: "brown" }, { name: "BLS_블스", team: "brown" }, { name: "BLS_섭좀", team: "brown" }
+            { name: "GMT_과박", team: "purple" }, { name: "GMT_랑월", team: "purple" }, { name: "GMT_익명", team: "purple" }, { name: "GMT_찌농", team: "purple" }, { name: "GMT_후쥐", team: "purple" },
+            { name: "GS3_게로", team: "green" }, { name: "GS3_창조", team: "green" }, { name: "GS3_넴리", team: "green" }, { name: "GS3_직플", team: "green" }, { name: "GS3_서진", team: "green" },
+            { name: "B1A4_운명", team: "yellow" }, { name: "B1A4_러각", team: "yellow" }, { name: "B1A4_소네", team: "yellow" }, { name: "B1A4_우유", team: "yellow" }, { name: "B1A4_집가", team: "yellow" },
+            { name: "DBT_모지", team: "blue" }, { name: "DBT_로니", team: "blue" }, { name: "DBT_사르", team: "blue" }, { name: "DBT_지니", team: "blue" }, { name: "DBT_티티", team: "blue" },
+            { name: "HTML_하멜", team: "red" }, { name: "HTML_귤까", team: "red" }, { name: "HTML_무혼", team: "red" }, { name: "HTML_흑랑", team: "red" }, { name: "HTML_엘제", team: "red" },
+            { name: "BLS_한빈", team: "brown" }, { name: "BLS_도감", team: "brown" }, { name: "BLS_문스", team: "brown" }, { name: "BLS_블스", team: "brown" }, { name: "BLS_섭좀", team: "brown" }
         ];
 
-        // Firebase 설정 (님 설정값)
+        // Firebase 설정 (databaseURL 필수)
         const firebaseConfig = {
             apiKey: "AIzaSyDP7WJoqi9hWXO27KaeY9Lvitj-5-E0j5Y",
             authDomain: "bsar5-d7818.firebaseapp.com",
-            databaseURL: "https://bsar5-d7818-default-rtdb.firebaseio.com",
+            databaseURL: "https://bsar5-d7818-default-rtdb.firebaseio.com", // ✅ Realtime DB URL
             projectId: "bsar5-d7818",
             storageBucket: "bsar5-d7818.firebasestorage.app",
             messagingSenderId: "377629207721",
@@ -130,7 +119,7 @@
         };
 
         const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
+        const db = getDatabase(app); // ✅ Realtime DB 초기화
 
         let currentData = [];
         let currentWeek = "week1";
@@ -140,9 +129,7 @@
         window.toggleAdmin = toggleAdmin;
         window.sortTable = sortTable;
 
-        // 초기화
         function initUI() {
-            // 1. 테이블 헤더 생성
             const headerRow = document.getElementById('tableHeaderRow');
             let headerHTML = `<th onclick="sortTable('name')">이름 (팀)</th>`;
             eventNames.forEach((name, index) => {
@@ -150,7 +137,6 @@
             });
             headerRow.innerHTML = headerHTML;
 
-            // 2. 입력창 종목 선택 생성
             const selectBox = document.getElementById('inputEventSelect');
             let optionsHTML = "";
             eventNames.forEach((name, index) => {
@@ -158,7 +144,6 @@
             });
             selectBox.innerHTML = optionsHTML;
 
-            // 3. 입력창 선수 선택 생성 (30명)
             const nameSelect = document.getElementById('inputNameSelect');
             let nameOptions = `<option value="">선수 선택</option>`;
             defaultPlayers.forEach(p => {
@@ -167,37 +152,40 @@
             nameSelect.innerHTML = nameOptions;
         }
 
-        // 데이터 불러오기
+        // Realtime DB에서 데이터 읽기
         async function loadData() {
             const weekSelect = document.getElementById('weekSelect');
             currentWeek = weekSelect.value;
             const tableBody = document.getElementById('tableBody');
             tableBody.innerHTML = '<tr><td colspan="13" style="text-align:center; padding: 20px;">데이터를 불러오는 중...</td></tr>';
 
-            const querySnapshot = await getDocs(collection(db, currentWeek));
-            let dbData = [];
-            querySnapshot.forEach((doc) => {
-                dbData.push(doc.data());
-            });
-
-            // 데이터 병합 로직: DB에 데이터가 있든 없든 30명 기본 명단을 뼈대로 사용
-            // 이렇게 해야 아직 기록이 없는 사람도 목록에 표시됨
-            currentData = defaultPlayers.map(player => {
-                // DB에서 같은 이름을 가진 사람 찾기
-                const record = dbData.find(d => d.name === player.name);
-                if (record) {
-                    return { ...player, ...record }; // DB 기록이 있으면 덮어쓰기
-                } else {
-                    return player; // 없으면 기본 정보만 사용
+            const dbRef = ref(db);
+            
+            // ✅ Realtime DB 읽기 방식
+            get(child(dbRef, currentWeek)).then((snapshot) => {
+                let dbData = [];
+                if (snapshot.exists()) {
+                    // Object 형태를 배열로 변환
+                    dbData = Object.values(snapshot.val());
                 }
-            });
 
-            // 초기 정렬: 팀 순서대로 (defaultPlayers 배열 순서 유지)
-            // 별도의 정렬 없이 map 순서 그대로 두면 보라->초록->노랑... 순으로 나옴
-            renderTable(currentData);
+                currentData = defaultPlayers.map(player => {
+                    const record = dbData.find(d => d.name === player.name);
+                    if (record) {
+                        return { ...player, ...record };
+                    } else {
+                        return player;
+                    }
+                });
+
+                renderTable(currentData);
+
+            }).catch((error) => {
+                console.error(error);
+                tableBody.innerHTML = '<tr><td colspan="13" style="text-align:center; padding: 20px;">불러오기 실패</td></tr>';
+            });
         }
 
-        // 테이블 렌더링
         function renderTable(data) {
             const tableBody = document.getElementById('tableBody');
             tableBody.innerHTML = "";
@@ -215,34 +203,28 @@
             });
         }
 
-        // 정렬
         function sortTable(key) {
             if (key === 'name') {
-                // 이름 정렬 (가나다순)
                 currentData.sort((a, b) => a.name.localeCompare(b.name));
             } else {
-                // 기록 정렬
                 currentData.sort((a, b) => {
                     let valA = a[key];
                     let valB = b[key];
                     
-                    // 값 없음(미참여)은 맨 뒤로
                     if (!valA) return 1; 
                     if (!valB) return -1;
                     
-                    // RETIRE는 숫자 뒤, 미참여 앞 (여기선 큰 숫자로 취급)
                     if (valA === "RETIRE") return 1;
                     if (valB === "RETIRE") return -1;
                     if (valA === "RETIRE" && valB === "RETIRE") return 0;
                     
-                    // 숫자는 오름차순 (작은 게 1등)
                     return parseFloat(valA) - parseFloat(valB);
                 });
             }
             renderTable(currentData);
         }
 
-        // 저장
+        // Realtime DB에 데이터 쓰기
         async function saveRecord() {
             const name = document.getElementById('inputNameSelect').value;
             const event = document.getElementById('inputEventSelect').value;
@@ -250,7 +232,6 @@
 
             if (!name) return alert("선수를 선택하세요.");
 
-            // 팀 색상 정보 가져오기
             const playerInfo = defaultPlayers.find(p => p.name === name);
             const team = playerInfo ? playerInfo.team : "brown";
 
@@ -266,27 +247,34 @@
                 }
             }
 
-            const docRef = doc(db, currentWeek, name);
-            const docSnap = await getDoc(docRef);
-            
-            let newData = {};
-            if (docSnap.exists()) {
-                newData = docSnap.data();
-            } else {
-                newData = { name: name, team: team };
-            }
+            // ✅ Realtime DB 경로 참조 (week1/선수이름)
+            const userRef = ref(db, currentWeek + '/' + name);
 
-            newData.team = team;
+            // 기존 데이터 가져오기
+            get(userRef).then((snapshot) => {
+                let newData = {};
+                if (snapshot.exists()) {
+                    newData = snapshot.val();
+                } else {
+                    newData = { name: name, team: team };
+                }
 
-            if (record === null) {
-                delete newData[event];
-            } else {
-                newData[event] = record;
-            }
+                // 데이터 수정
+                if (record === null) {
+                    delete newData[event];
+                } else {
+                    newData[event] = record;
+                }
+                newData.team = team; // 팀 정보 최신화
 
-            await setDoc(docRef, newData);
-            alert("저장되었습니다!");
-            loadData();
+                // ✅ Realtime DB 저장
+                set(userRef, newData).then(() => {
+                    alert("저장되었습니다!");
+                    loadData();
+                }).catch((error) => {
+                    alert("저장 실패: " + error.message);
+                });
+            });
         }
 
         function toggleAdmin() {
