@@ -15,15 +15,28 @@
         button:hover { background-color: #555; }
         button.save-btn { background-color: #007bff; border-color: #007bff; }
         button.save-btn:hover { background-color: #0056b3; }
+        button.reset-btn { background-color: #dc3545; border-color: #dc3545; } /* 초기화 버튼 색상 */
+        button.reset-btn:hover { background-color: #c82333; }
 
         /* 테이블 스타일 */
-        .table-container { overflow-x: auto; background: white; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-        table { width: 100%; border-collapse: collapse; min-width: 1400px; }
-        th, td { padding: 12px; text-align: center; border-bottom: 1px solid #eee; white-space: nowrap; }
-        th { background-color: #333; color: white; cursor: pointer; user-select: none; position: sticky; top: 0; }
-        th:hover { background-color: #555; }
+        .table-container { overflow-x: auto; background: white; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); position: relative; }
+        table { width: 100%; border-collapse: separate; border-spacing: 0; min-width: 1400px; } /* border-collapse: separate 필요 (sticky 때문) */
+        th, td { padding: 12px; text-align: center; border-bottom: 1px solid #eee; white-space: nowrap; border-right: 1px solid #eee; }
         
-        /* 팀 색상 스타일 */
+        /* 헤더 고정 (상단) */
+        th { background-color: #333; color: white; user-select: none; position: sticky; top: 0; z-index: 20; }
+        
+        /* 이름 컬럼 고정 (좌측) - 핵심 기능 */
+        .sticky-col { 
+            position: sticky; 
+            left: 0; 
+            z-index: 30; /* 헤더보다 위, 데이터보다 위 */
+            background-color: #fff; /* 투명하면 뒤에 글씨 비침 방지 */
+            border-right: 2px solid #ddd;
+        }
+        th.sticky-col { z-index: 40; background-color: #333; } /* 왼쪽 상단 코너는 최상단 */
+
+        /* 팀 색상 스타일 (이름 배경색) */
         .team-purple { border-left: 5px solid #800080; background-color: #fcf0fc; color: #800080; font-weight: bold; }
         .team-green { border-left: 5px solid #008000; background-color: #f0fcf0; color: #008000; font-weight: bold; }
         .team-yellow { border-left: 5px solid #DAA520; background-color: #fcfcf0; color: #DAA520; font-weight: bold; }
@@ -33,8 +46,14 @@
 
         /* 관리자 패널 */
         #adminPanel { display: none; border: 2px solid #333; padding: 20px; margin-top: 20px; background: #fff; border-radius: 8px; }
-        .section-title { border-bottom: 2px solid #eee; padding-bottom: 10px; margin-bottom: 15px; font-weight: bold; color: #333; }
         .input-group { margin-bottom: 20px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+
+        /* 이동 버튼 스타일 */
+        .move-btn {
+            background: none; border: none; color: #aaa; cursor: pointer; font-size: 10px; padding: 0 2px;
+        }
+        .move-btn:hover { color: #fff; }
+        .th-content { display: flex; align-items: center; justify-content: center; gap: 5px; }
     </style>
 </head>
 <body>
@@ -50,7 +69,8 @@
             <option value="week4">4주차</option>
             <option value="week5">5주차</option>
         </select>
-        <button onclick="toggleAdmin()">⚙️ 관리자 모드 (기록 입력)</button>
+        <button class="reset-btn" onclick="resetOrder()">↺ 종목 순서 초기화</button>
+        <button onclick="toggleAdmin()">⚙️ 관리자 모드</button>
     </div>
 
     <div class="table-container">
@@ -66,22 +86,19 @@
     </div>
 
     <div id="adminPanel">
-        <div class="section-title">📝 선수 기록 입력</div>
+        <h3>📝 기록 입력</h3>
         <div class="input-group">
             <select id="inputNameSelect">
                 <option value="">선수 선택</option>
             </select>
-            
             <select id="inputEventSelect">
                 </select>
-
             <input type="text" id="inputRecord" placeholder="기록 (엔터키로 저장)" onkeydown="if(window.event.keyCode == 13){ saveRecord(); }">
-            
             <button class="save-btn" onclick="saveRecord()">저장</button>
         </div>
         <p style="font-size: 0.8em; color: gray;">
-            * 기록 입력 후 <b>엔터(Enter)</b>를 누르면 바로 저장됩니다.<br>
-            * 저장 후 입력창이 비워지니 바로 다음 기록을 입력하세요.
+            * <b>엔터(Enter)</b>를 누르면 바로 저장됩니다.<br>
+            * 입력창은 자동으로 비워집니다.
         </p>
     </div>
 
@@ -95,6 +112,9 @@
             "무승부 사목", "넘버 체인", "물용량", "괴물 퍼즐", 
             "더색놀", "13간지", "한수체크", "나무위키"
         ];
+
+        // 화면에 보여질 종목 순서 (인덱스 0~11)
+        let eventOrder = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
 
         // ✅ 참가자 명단
         const defaultPlayers = [
@@ -124,19 +144,18 @@
         let currentData = [];
         let currentWeek = "week1";
 
+        // 전역 함수 연결
         window.loadData = loadData;
         window.saveRecord = saveRecord;
         window.toggleAdmin = toggleAdmin;
         window.sortTable = sortTable;
+        window.moveColumn = moveColumn;
+        window.resetOrder = resetOrder;
 
         function initUI() {
-            const headerRow = document.getElementById('tableHeaderRow');
-            let headerHTML = `<th onclick="sortTable('name')">이름 (팀)</th>`;
-            eventNames.forEach((name, index) => {
-                headerHTML += `<th onclick="sortTable('event${index + 1}')">${name}</th>`;
-            });
-            headerRow.innerHTML = headerHTML;
-
+            renderHeader(); // 헤더 그리기 (순서 반영)
+            
+            // 관리자 패널용 드롭다운 생성 (고정 순서)
             const selectBox = document.getElementById('inputEventSelect');
             let optionsHTML = "";
             eventNames.forEach((name, index) => {
@@ -150,6 +169,49 @@
                 nameOptions += `<option value="${p.name}">${p.name} (${p.team})</option>`;
             });
             nameSelect.innerHTML = nameOptions;
+        }
+
+        // 1. 헤더 그리기 (순서 변경 기능 포함)
+        function renderHeader() {
+            const headerRow = document.getElementById('tableHeaderRow');
+            let headerHTML = `<th class="sticky-col" onclick="sortTable('name')">이름 (팀)</th>`;
+            
+            // eventOrder 배열 순서대로 헤더를 생성
+            eventOrder.forEach((originalIndex, displayIndex) => {
+                // 원래 인덱스(0~11)를 이용해 event1 ~ event12 키를 찾음
+                let eventKey = `event${originalIndex + 1}`;
+                let name = eventNames[originalIndex];
+
+                headerHTML += `
+                    <th>
+                        <div class="th-content">
+                            ${displayIndex > 0 ? `<button class="move-btn" onclick="moveColumn(${displayIndex}, -1)">◀</button>` : ''}
+                            <span onclick="sortTable('${eventKey}')" style="cursor:pointer">${name}</span>
+                            ${displayIndex < 11 ? `<button class="move-btn" onclick="moveColumn(${displayIndex}, 1)">▶</button>` : ''}
+                        </div>
+                    </th>
+                `;
+            });
+            headerRow.innerHTML = headerHTML;
+        }
+
+        // 2. 컬럼 이동 함수
+        function moveColumn(index, direction) {
+            // 배열 내 위치 교환 (Swap)
+            let temp = eventOrder[index];
+            eventOrder[index] = eventOrder[index + direction];
+            eventOrder[index + direction] = temp;
+            
+            // 다시 그리기
+            renderHeader();
+            renderTable(currentData);
+        }
+
+        // 3. 순서 초기화 함수
+        function resetOrder() {
+            eventOrder = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
+            renderHeader();
+            renderTable(currentData);
         }
 
         async function loadData() {
@@ -177,18 +239,23 @@
             });
         }
 
+        // 4. 테이블 데이터 그리기 (순서 반영)
         function renderTable(data) {
             const tableBody = document.getElementById('tableBody');
             tableBody.innerHTML = "";
 
             data.forEach(person => {
                 let row = `<tr>`;
-                row += `<td class="team-${person.team}">${person.name}</td>`;
+                // 이름 컬럼 (Sticky 적용)
+                row += `<td class="sticky-col team-${person.team}">${person.name}</td>`;
                 
-                for(let i=1; i<=12; i++) {
-                    let record = person[`event${i}`] || "-";
+                // eventOrder 순서대로 데이터 출력
+                eventOrder.forEach(originalIndex => {
+                    let eventKey = `event${originalIndex + 1}`;
+                    let record = person[eventKey] || "-";
                     row += `<td>${record}</td>`;
-                }
+                });
+
                 row += `</tr>`;
                 tableBody.innerHTML += row;
             });
@@ -255,10 +322,9 @@
                 newData.team = team;
 
                 set(userRef, newData).then(() => {
-                    // 팝업 없이 바로 갱신
                     loadData();
-                    recordInput.value = ""; // 입력창 비움
-                    recordInput.focus();    // 포커스 유지
+                    recordInput.value = ""; 
+                    recordInput.focus(); 
                 }).catch((error) => {
                     alert("저장 실패: " + error.message);
                 });
@@ -275,4 +341,3 @@
     </script>
 </body>
 </html>
-
