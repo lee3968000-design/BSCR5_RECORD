@@ -66,7 +66,7 @@
     </div>
 
     <div id="adminPanel">
-        <div class="section-title">📝 선수 기록 입력/수정</div>
+        <div class="section-title">📝 선수 기록 입력</div>
         <div class="input-group">
             <select id="inputNameSelect">
                 <option value="">선수 선택</option>
@@ -75,18 +75,17 @@
             <select id="inputEventSelect">
                 </select>
 
-            <input type="text" id="inputRecord" placeholder="기록 (숫자 또는 RETIRE)">
-            <button class="save-btn" onclick="saveRecord()">기록 저장하기</button>
+            <input type="text" id="inputRecord" placeholder="기록 (엔터키로 저장)">
+            <button class="save-btn" onclick="saveRecord()">저장</button>
         </div>
         <p style="font-size: 0.8em; color: gray;">
-            * 기록을 입력하면 자동으로 저장되고 테이블이 갱신됩니다.<br>
-            * Realtime Database를 사용합니다.
+            * 기록 입력 후 <b>엔터(Enter)</b>를 누르면 바로 저장됩니다.<br>
+            * 저장 후 입력창이 비워지니 바로 다음 기록을 입력하세요.
         </p>
     </div>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        // 🔴 중요: firestore 대신 database를 import 했습니다.
         import { getDatabase, ref, set, get, child } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
         // ✅ 종목 이름 고정
@@ -106,11 +105,11 @@
             { name: "BLS_한빈", team: "brown" }, { name: "BLS_도감", team: "brown" }, { name: "BLS_문스", team: "brown" }, { name: "BLS_블스", team: "brown" }, { name: "BLS_섭좀", team: "brown" }
         ];
 
-        // Firebase 설정 (databaseURL 필수)
+        // Firebase 설정
         const firebaseConfig = {
             apiKey: "AIzaSyDP7WJoqi9hWXO27KaeY9Lvitj-5-E0j5Y",
             authDomain: "bsar5-d7818.firebaseapp.com",
-            databaseURL: "https://bsar5-d7818-default-rtdb.firebaseio.com", // ✅ Realtime DB URL
+            databaseURL: "https://bsar5-d7818-default-rtdb.firebaseio.com",
             projectId: "bsar5-d7818",
             storageBucket: "bsar5-d7818.firebasestorage.app",
             messagingSenderId: "377629207721",
@@ -119,7 +118,7 @@
         };
 
         const app = initializeApp(firebaseConfig);
-        const db = getDatabase(app); // ✅ Realtime DB 초기화
+        const db = getDatabase(app);
 
         let currentData = [];
         let currentWeek = "week1";
@@ -150,32 +149,32 @@
                 nameOptions += `<option value="${p.name}">${p.name} (${p.team})</option>`;
             });
             nameSelect.innerHTML = nameOptions;
+
+            // ✅ 엔터키 이벤트 리스너 추가
+            const inputRecord = document.getElementById('inputRecord');
+            inputRecord.addEventListener("keypress", function(event) {
+                if (event.key === "Enter") {
+                    event.preventDefault(); // 폼 전송 막기
+                    saveRecord();
+                }
+            });
         }
 
-        // Realtime DB에서 데이터 읽기
         async function loadData() {
             const weekSelect = document.getElementById('weekSelect');
             currentWeek = weekSelect.value;
             const tableBody = document.getElementById('tableBody');
-            tableBody.innerHTML = '<tr><td colspan="13" style="text-align:center; padding: 20px;">데이터를 불러오는 중...</td></tr>';
-
-            const dbRef = ref(db);
             
-            // ✅ Realtime DB 읽기 방식
+            const dbRef = ref(db);
             get(child(dbRef, currentWeek)).then((snapshot) => {
                 let dbData = [];
                 if (snapshot.exists()) {
-                    // Object 형태를 배열로 변환
                     dbData = Object.values(snapshot.val());
                 }
 
                 currentData = defaultPlayers.map(player => {
                     const record = dbData.find(d => d.name === player.name);
-                    if (record) {
-                        return { ...player, ...record };
-                    } else {
-                        return player;
-                    }
+                    return record ? { ...player, ...record } : player;
                 });
 
                 renderTable(currentData);
@@ -213,7 +212,6 @@
                     
                     if (!valA) return 1; 
                     if (!valB) return -1;
-                    
                     if (valA === "RETIRE") return 1;
                     if (valB === "RETIRE") return -1;
                     if (valA === "RETIRE" && valB === "RETIRE") return 0;
@@ -224,11 +222,11 @@
             renderTable(currentData);
         }
 
-        // Realtime DB에 데이터 쓰기
         async function saveRecord() {
             const name = document.getElementById('inputNameSelect').value;
             const event = document.getElementById('inputEventSelect').value;
-            let record = document.getElementById('inputRecord').value.trim();
+            let recordInput = document.getElementById('inputRecord');
+            let record = recordInput.value.trim();
 
             if (!name) return alert("선수를 선택하세요.");
 
@@ -247,10 +245,8 @@
                 }
             }
 
-            // ✅ Realtime DB 경로 참조 (week1/선수이름)
             const userRef = ref(db, currentWeek + '/' + name);
 
-            // 기존 데이터 가져오기
             get(userRef).then((snapshot) => {
                 let newData = {};
                 if (snapshot.exists()) {
@@ -259,18 +255,19 @@
                     newData = { name: name, team: team };
                 }
 
-                // 데이터 수정
                 if (record === null) {
                     delete newData[event];
                 } else {
                     newData[event] = record;
                 }
-                newData.team = team; // 팀 정보 최신화
+                newData.team = team;
 
-                // ✅ Realtime DB 저장
                 set(userRef, newData).then(() => {
-                    alert("저장되었습니다!");
+                    // ✅ 팝업 삭제 & 입력창 비우기 & 포커스 유지
+                    // alert("저장되었습니다!");  <-- 삭제됨
                     loadData();
+                    recordInput.value = ""; // 입력창 비움
+                    recordInput.focus();    // 계속 입력할 수 있게 포커스
                 }).catch((error) => {
                     alert("저장 실패: " + error.message);
                 });
@@ -287,3 +284,4 @@
     </script>
 </body>
 </html>
+
